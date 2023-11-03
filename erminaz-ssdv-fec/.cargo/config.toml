@@ -1,0 +1,6 @@
+[build]
+target = "thumbv7em-none-eabi"
+
+[target.thumbv7em-none-eabi]
+# flags for STM32L476 (Cortex-M4)
+rustflags = ["-C", "target-feature=+mclass,+thumb2,+v7", "-C", "target-cpu=cortex-m4"]

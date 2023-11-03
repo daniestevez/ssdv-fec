@@ -1,0 +1,28 @@
+[package]
+name = "ssdv-fec"
+version = "0.1.0"
+edition = "2021"
+authors = ["Daniel Estevez <daniel@destevez.net>"]
+description = "SSDV systematic erasure FEC"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/daniestevez/ssdv-fec/"
+repository = "https://github.com/daniestevez/ssdv-fec/"
+keywords = ["fec", "reed solomon", "galois field", "satellite", "erminaz"]
+categories = ["aerospace::space-protocols"]
+
+[dependencies]
+anyhow = { version = "1", features = ["std"], optional = true }
+clap = { version = "4.4.7", features = ["derive"], optional = true }
+ssdv-fec-gf-tables = { version = "0.1", path = "ssdv-fec-gf-tables" }
+thiserror = { version = "1", optional = true }
+
+[features]
+default = ["cli", "std"]
+# Enables the CLI application
+cli = ["anyhow", "clap", "std"]
+# Enables std support
+std = ["thiserror"]
+
+[[bin]]
+name = "ssdv-fec"
+required-features = ["cli", "std"]

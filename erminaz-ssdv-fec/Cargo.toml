@@ -1,0 +1,21 @@
+[package]
+name = "erminaz-ssdv-fec"
+version = "0.1.0"
+edition = "2021"
+authors = ["Daniel Estevez <daniel@destevez.net>"]
+description = "SSDV FEC library for the AMSAT-DL ERMINAZ mission"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/daniestevez/ssdv-fec/"
+repository = "https://github.com/daniestevez/ssdv-fec/"
+keywords = ["fec", "reed solomon", "galois field", "satellite", "erminaz"]
+categories = ["aerospace::space-protocols"]
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+panic-halt = "0.2"
+ssdv-fec = { version = "0.1.0", path = "../ssdv-fec", default-features = false }
+
+[build-dependencies]
+cbindgen = "0.26"
