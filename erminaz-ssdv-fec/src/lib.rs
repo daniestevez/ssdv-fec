@@ -45,10 +45,12 @@ pub unsafe extern "C" fn ssdv_fec_encoder_setup(
         slice::from_raw_parts_mut(ssdv_packets.cast::<SSDVPacket>(), num_ssdv_packets as usize);
     let encoder = match Encoder::new(ssdv_packets) {
         Ok(encoder) => encoder,
-        Err(err) => return match err {
-            EncoderError::EmptyInput => SSDV_FEC_ENCODER_ERR_EMPTY_INPUT,
-            EncoderError::TooLongInput => SSDV_FEC_ENCODER_ERR_TOO_LONG_INPUT,
-            EncoderError::NonSystematicInput => SSDV_FEC_ENCODER_ERR_NON_SYSTEMATIC_INPUT,
+        Err(err) => {
+            return match err {
+                EncoderError::EmptyInput => SSDV_FEC_ENCODER_ERR_EMPTY_INPUT,
+                EncoderError::TooLongInput => SSDV_FEC_ENCODER_ERR_TOO_LONG_INPUT,
+                EncoderError::NonSystematicInput => SSDV_FEC_ENCODER_ERR_NON_SYSTEMATIC_INPUT,
+            }
         }
     };
     SSDV_FEC_ENCODER.write(encoder);
@@ -126,7 +128,7 @@ pub unsafe extern "C" fn ssdv_fec_decoder_decode(
             DecoderError::InconsistentFlags => SSDV_FEC_DECODER_ERR_INCONSISTENT_FLAGS,
             DecoderError::DimensionsMismatch => SSDV_FEC_DECODER_ERR_DIMENSIONS_MISMATCH,
             DecoderError::NoSystematic => SSDV_FEC_DECODER_ERR_NO_SYSTEMATIC,
-        }
+        },
     }
 }
 
