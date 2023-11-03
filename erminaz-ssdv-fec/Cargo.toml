@@ -7,7 +7,7 @@ description = "SSDV FEC library for the AMSAT-DL ERMINAZ mission"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/daniestevez/ssdv-fec/"
 repository = "https://github.com/daniestevez/ssdv-fec/"
-keywords = ["fec", "reed solomon", "galois field", "satellite", "erminaz"]
+keywords = ["fec", "reed-solomon", "galois-field", "satellite", "erminaz"]
 categories = ["aerospace::space-protocols"]
 
 [lib]
