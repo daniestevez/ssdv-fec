@@ -1,0 +1,26 @@
+name: erminaz-ssdv-fec
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: erminaz-ssdv-fec
+    steps:
+    - uses: actions/checkout@v2
+    - name: Add thumbv7em-none-eabi
+      run: rustup target add thumbv7em-none-eabi
+    - name: Format
+      run: cargo fmt --all -- --check
+    - name: Clippy
+      run: cargo clippy -- -D warnings      
+    - name: Doc
+      run: RUSTFLAGS="-D warnings" cargo doc
+    - name: Build
+      run: cargo build --release --verbose
