@@ -1,6 +1,6 @@
 [package]
 name = "ssdv-fec"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Daniel Estevez <daniel@destevez.net>"]
 description = "SSDV systematic erasure FEC"
