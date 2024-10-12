@@ -9,7 +9,7 @@ by the author of this crate.
 
 Given an SSDV image formed by k SSDV packets, the FEC encoder can generate up to
 2¹⁶ different SSDV packets identified by a packet ID from 0 to 2¹⁶-1. The
-packets with IDs from 0 to k-1 which are called "systematic packets" and are the
+packets with IDs from 0 to k-1 are called "systematic packets" and are the
 same as the k packets of the original image. The remaining packets are called
 "FEC packets". Each packet can be generated on demand according to the needs of
 the transmitter. The large amount of 2¹⁶ distinct packets than can be generated
