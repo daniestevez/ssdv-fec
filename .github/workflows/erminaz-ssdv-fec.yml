@@ -13,7 +13,7 @@ jobs:
       run:
         working-directory: erminaz-ssdv-fec
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Add thumbv7em-none-eabi
       run: rustup target add thumbv7em-none-eabi
     - name: Format

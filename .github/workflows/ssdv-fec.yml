@@ -13,7 +13,7 @@ jobs:
       run:
         working-directory: ssdv-fec
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Format
       run: cargo fmt --all -- --check
     - name: Clippy
@@ -32,7 +32,7 @@ jobs:
       run:
         working-directory: ssdv-fec
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Format
       run: cargo fmt --all -- --check
     - name: Clippy
@@ -51,7 +51,7 @@ jobs:
       run:
         working-directory: ssdv-fec/ssdv-fec-gf-tables
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Format
       run: cargo fmt --all -- --check
     - name: Clippy
