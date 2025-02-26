@@ -1,3 +1,5 @@
+use crate::crc::crc32;
+
 /// SSDV packet.
 ///
 /// This struct wraps an array containing an SSDV packet and provides some
@@ -145,6 +147,14 @@ impl SSDVPacket {
         self.0[..SSDV_PACKET_LEN - 4].try_into().unwrap()
     }
 
+    /// Calculates the CRC-32 of the data in the packet.
+    ///
+    /// This function returns the CRC-32 of the array returned by
+    /// [`SSDVPacket::crc32_data`].
+    pub fn computed_crc32(&self) -> u32 {
+        crc32(self.crc32_data().iter())
+    }
+
     /// Returns the value of the CRC-32 field of the packet.
     pub fn crc32(&self) -> u32 {
         u32::from_be_bytes(self.0[SSDV_PACKET_LEN - 4..].try_into().unwrap())
@@ -153,5 +163,18 @@ impl SSDVPacket {
     /// Sets the value of the CRC-32 field of the packet.
     pub fn set_crc32(&mut self, crc32: u32) {
         self.0[SSDV_PACKET_LEN - 4..].copy_from_slice(&crc32.to_be_bytes());
+    }
+
+    /// Returns `true` if the CRC-32 of the packet is correct.
+    pub fn crc32_is_valid(&self) -> bool {
+        self.computed_crc32() == self.crc32()
+    }
+
+    /// Sets the CRC-32 field of the packet to the CRC computed from the data.
+    ///
+    /// This function modifies the CRC-32 field of the packet by setting it to
+    /// the CRC-32 returned by [`SSDVPacket::crc32`].
+    pub fn update_crc32(&mut self) {
+        self.set_crc32(self.computed_crc32());
     }
 }
