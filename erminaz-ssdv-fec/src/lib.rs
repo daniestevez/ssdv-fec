@@ -32,10 +32,12 @@ static mut SSDV_FEC_ENCODER: MaybeUninit<Encoder> = MaybeUninit::uninit();
 ///
 /// # Safety
 ///
-/// This function is not thread safe, since it uses static mutable storage. The
-/// buffer pointed to by `ssdv_packets` must have allocated storage for at least
-/// `num_ssdv_packets` SSDV packets and must outlive all the usage of the FEC
-/// encoder until this function is called again with a new buffer.
+/// This function is not thread safe. It cannot be called concurrently with
+/// itself or with [`ssdv_fec_encoder_encode`]. The buffer pointed to by
+/// `ssdv_packets` must have allocated storage for at least `num_ssdv_packets`
+/// SSDV packets, must outlive all the usage of the FEC encoder until this
+/// function is called again with a new buffer, and its contents must not be
+/// accessed by other code while the buffer is owned by the FEC encoder.
 #[no_mangle]
 pub unsafe extern "C" fn ssdv_fec_encoder_setup(
     ssdv_packets: *mut c_char,
@@ -53,7 +55,16 @@ pub unsafe extern "C" fn ssdv_fec_encoder_setup(
             }
         }
     };
-    SSDV_FEC_ENCODER.write(encoder);
+    // SAFETY:
+    //
+    // According to the precodintions of this function, it is not to be called
+    // concurrently with other functions that may access SSDV_FEC_ENCODER, so it
+    // is safe to create a mutable reference to the static mut SSDV_FEC_ENCODER
+    // here.
+    //
+    // https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html#safe-references
+    let ssdv_fec_encoder_ptr = &raw mut SSDV_FEC_ENCODER;
+    (*ssdv_fec_encoder_ptr).write(encoder);
     0
 }
 
@@ -67,15 +78,25 @@ pub unsafe extern "C" fn ssdv_fec_encoder_setup(
 ///
 /// # Safety
 ///
-/// This function is not thread safe. The `packet_id` parameter must be
+/// This function is not thread safe. It cannot be called concurrently with
+/// itself or with [`ssdv_fec_encoder_setup`]. The `packet_id` parameter must be
 /// non-negative and smaller than `2**16 - 1`. The `output` buffer must have
 /// allocated storage for at least one SSDV packet. All the safety
-/// considerations of `ssdv_fec_encoder_setup` also apply.
+/// considerations of [`ssdv_fec_encoder_setup`] also apply.
 #[no_mangle]
 pub unsafe extern "C" fn ssdv_fec_encoder_encode(packet_id: c_int, output: *mut c_char) {
     let output = output.cast::<SSDVPacket>();
     let output = &mut *output;
-    SSDV_FEC_ENCODER
+    // SAFETY:
+    //
+    // According to the precodintions of this function, it is not to be called
+    // concurrently with other functions that may access SSDV_FEC_ENCODER, so it
+    // is safe to create a mutable reference to the static mut SSDV_FEC_ENCODER
+    // here.
+    //
+    // https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html#safe-references
+    let ssdv_fec_encoder_ptr = &raw mut SSDV_FEC_ENCODER;
+    (*ssdv_fec_encoder_ptr)
         .assume_init_mut()
         .encode(packet_id as u16, output);
 }

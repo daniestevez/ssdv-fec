@@ -36,7 +36,7 @@ pub enum EncoderError {
     NonSystematicInput,
 }
 
-impl<'a> Encoder<'a> {
+impl Encoder<'_> {
     /// Creates a new FEC encoder for an SSDV image.
     ///
     /// The systematic packets for the image are given in the slice
