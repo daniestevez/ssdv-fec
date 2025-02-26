@@ -105,15 +105,22 @@ pub fn run() -> Result<()> {
 fn read_ssdv_to_vec<P: AsRef<Path>>(path: P) -> Result<Vec<SSDVPacket>> {
     let mut file = File::open(path)?;
     let mut packets = Vec::new();
-    loop {
+    for n in 0.. {
         let mut packet = SSDVPacket::zeroed();
         match file.read_exact(&mut packet.0) {
             Err(err) if matches!(err.kind(), ErrorKind::UnexpectedEof) => return Ok(packets),
             Err(err) => Err(err)?,
             Ok(()) => (),
         }
+        if !packet.crc32_is_valid() {
+            eprintln!(
+                "CRC-32 for packet number {n} in input file is wrong \
+                 (perhaps the packet format is wrong)"
+            );
+        }
         packets.push(packet);
     }
+    unreachable!();
 }
 
 fn write_ssdv_slice<P: AsRef<Path>>(path: P, ssdv_packets: &[SSDVPacket]) -> Result<()> {

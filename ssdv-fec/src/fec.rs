@@ -1,4 +1,4 @@
-use crate::{crc::crc32, SSDVPacket, GF64K, SSDV_DATA_LEN};
+use crate::{SSDVPacket, GF64K, SSDV_DATA_LEN};
 #[cfg(feature = "std")]
 use thiserror::Error;
 
@@ -119,7 +119,7 @@ impl<'a> Encoder<'a> {
         } else {
             self.encode_systematic_data(packet_id, output.data_as_mut());
         }
-        output.set_crc32(crc32(output.crc32_data().iter()));
+        output.update_crc32();
     }
 
     fn encode_header(&self, packet_id: u16, output: &mut SSDVPacket) {
@@ -351,7 +351,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
         let mut len = input.len();
         let mut j = 0;
         while j < len {
-            if input[j].crc32() != crc32(input[j].crc32_data().iter()) {
+            if !input[j].crc32_is_valid() {
                 // remove wrong CRC
                 input.copy_within(j + 1..len, j);
                 len -= 1;
@@ -560,7 +560,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
             packet.set_fec_packet(false);
 
             // Fill CRC32
-            packet.set_crc32(crc32(packet.crc32_data().iter()));
+            packet.update_crc32();
         }
     }
 }
