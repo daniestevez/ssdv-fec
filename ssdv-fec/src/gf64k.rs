@@ -1,5 +1,4 @@
 use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use ssdv_fec_gf_tables::{gf256_exp_table, gf256_log_table};
 
 /// GF(2¹⁶) field element.
 ///
@@ -213,8 +212,18 @@ impl DivAssign for GF256 {
     }
 }
 
-static GF256_EXP_TABLE: [u8; 256] = gf256_exp_table!();
-static GF256_LOG_TABLE: [u8; 256] = gf256_log_table!();
+// GF(256) exponential table.
+//
+// The j-th entry of this table for j=0,...,254 contains the element xʲ encoded
+// as a `u8`. The 255-th entry is not used in practice and contains `0u8`.
+static GF256_EXP_TABLE: [u8; 256] = include!(concat!(env!("OUT_DIR"), "/gf256_exp_table.rs"));
+
+// GF(256) logarithm table.
+//
+// The j-th entry of this table for j=1,...,255 contains the exponent k such
+// that the element xᵏ encoded as a `u8` is equal to j. The 0-th entry contains
+// `0u8`, since the logarithm of 0 is undefined."
+static GF256_LOG_TABLE: [u8; 256] = include!(concat!(env!("OUT_DIR"), "/gf256_log_table.rs"));
 
 #[cfg(test)]
 mod test {

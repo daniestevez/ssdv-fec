@@ -43,22 +43,3 @@ jobs:
       run: cargo build --no-default-features --verbose
     - name: Run tests
       run: cargo test --no-default-features --verbose
-
-  gf_tables:
-    name: ssdv-fec-gf-tables
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ssdv-fec/ssdv-fec-gf-tables
-    steps:
-    - uses: actions/checkout@v4
-    - name: Format
-      run: cargo fmt --all -- --check
-    - name: Clippy
-      run: cargo clippy --all-targets -- -D warnings      
-    - name: Doc
-      run: RUSTFLAGS="-D warnings" cargo doc
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
