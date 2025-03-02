@@ -13,6 +13,7 @@ categories = ["aerospace::space-protocols"]
 [dependencies]
 anyhow = { version = "1", features = ["std"], optional = true }
 clap = { version = "4.4.7", features = ["derive"], optional = true }
+generic-array = "1.2"
 thiserror = { version = "1", optional = true }
 
 [build-dependencies]

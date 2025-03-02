@@ -1,4 +1,5 @@
-use crate::{SSDVPacket, GF64K, SSDV_DATA_LEN};
+use crate::{SSDVPacket, GF64K};
+use generic_array::GenericArray;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
@@ -14,8 +15,8 @@ use thiserror::Error;
 /// packets of the image. The lifetime of this slice is given by the lifetime
 /// parameter `'a`.
 #[derive(Debug)]
-pub struct Encoder<'a> {
-    buffer: &'a mut [SSDVPacket],
+pub struct Encoder<'a, S> {
+    buffer: &'a mut [S],
 }
 
 /// Error produced by the SSDV FEC encoder.
@@ -36,7 +37,21 @@ pub enum EncoderError {
     NonSystematicInput,
 }
 
-impl Encoder<'_> {
+// Computes
+// w_j^{-1} = \prod_{m \neq j} (x_j - x_m).
+fn wj_inv(j: u16, k: u16) -> GF64K {
+    let xj = GF64K::from(j);
+    let mut ret = GF64K::from(1);
+    for m in 0..k {
+        if m != j {
+            let xm = GF64K::from(m);
+            ret *= xj - xm;
+        }
+    }
+    ret
+}
+
+impl<S: SSDVPacket> Encoder<'_, S> {
     /// Creates a new FEC encoder for an SSDV image.
     ///
     /// The systematic packets for the image are given in the slice
@@ -46,7 +61,7 @@ impl Encoder<'_> {
     /// If there is a problem with the input contents, this function returns an
     /// error. Otherwise, an [`Encoder`] struct on which
     /// [`encode`](`Encoder::encode`) can be called is returned.
-    pub fn new(systematic_packets: &mut [SSDVPacket]) -> Result<Encoder, EncoderError> {
+    pub fn new(systematic_packets: &mut [S]) -> Result<Encoder<S>, EncoderError> {
         if systematic_packets.is_empty() {
             return Err(EncoderError::EmptyInput);
         }
@@ -62,20 +77,6 @@ impl Encoder<'_> {
         };
         encoder.values_to_lagrange();
         Ok(encoder)
-    }
-
-    // Computes
-    // w_j^{-1} = \prod_{m \neq j} (x_j - x_m).
-    fn wj_inv(j: u16, k: u16) -> GF64K {
-        let xj = GF64K::from(j);
-        let mut ret = GF64K::from(1);
-        for m in 0..k {
-            if m != j {
-                let xm = GF64K::from(m);
-                ret *= xj - xm;
-            }
-        }
-        ret
     }
 
     fn values_to_lagrange(&mut self) {
@@ -94,7 +95,7 @@ impl Encoder<'_> {
         let k = self.num_systematic();
         for j in 0..k {
             // Compute w_j
-            let wj = GF64K::from(1) / Self::wj_inv(j, k);
+            let wj = GF64K::from(1) / wj_inv(j, k);
             // Multiply each y_j by w_j
             let data = self.buffer[usize::from(j)].data_as_mut();
             for word in data.chunks_exact_mut(2) {
@@ -112,7 +113,7 @@ impl Encoder<'_> {
     /// the image, the corresponding systematic packet give to [`Encoder::new`]
     /// is generated. Otherwise, a FEC packet is generated. The packet is
     /// written to `output`.
-    pub fn encode(&self, packet_id: u16, output: &mut SSDVPacket) {
+    pub fn encode(&self, packet_id: u16, output: &mut S) {
         self.encode_header(packet_id, output);
         if output.is_fec_packet() {
             self.encode_fec_data(packet_id, output.data_as_mut());
@@ -122,7 +123,9 @@ impl Encoder<'_> {
         output.update_crc32();
     }
 
-    fn encode_header(&self, packet_id: u16, output: &mut SSDVPacket) {
+    fn encode_header(&self, packet_id: u16, output: &mut S) {
+        output.set_fixed_fields();
+        output.callsign_as_mut().copy_from_slice(self.callsign());
         output.set_image_id(self.image_id());
         output.set_packet_id(packet_id);
         let is_fec = packet_id >= self.num_systematic();
@@ -137,7 +140,7 @@ impl Encoder<'_> {
         output.set_fec_packet(is_fec);
     }
 
-    fn encode_fec_data(&self, packet_id: u16, data: &mut [u8; SSDV_DATA_LEN]) {
+    fn encode_fec_data(&self, packet_id: u16, data: &mut GenericArray<u8, S::DataLen>) {
         // See values_to_lagrange for the formulas
         let x = GF64K::from(packet_id);
         let k = self.num_systematic();
@@ -165,12 +168,12 @@ impl Encoder<'_> {
         }
     }
 
-    fn encode_systematic_data(&self, packet_id: u16, data: &mut [u8; SSDV_DATA_LEN]) {
+    fn encode_systematic_data(&self, packet_id: u16, data: &mut GenericArray<u8, S::DataLen>) {
         // The algorithm in encode_fec_data is not valid for systematic packets,
         // because both l(x) and one of the terms 1 / (x - x_j) vanish. In the
         // systematic case we compute w_j again and divide, undoing what we did
         // in values_to_lagrange.
-        let wjinv = Self::wj_inv(packet_id, self.num_systematic());
+        let wjinv = wj_inv(packet_id, self.num_systematic());
         for (word_in, word_out) in self.buffer[usize::from(packet_id)]
             .data()
             .chunks_exact(2)
@@ -181,6 +184,10 @@ impl Encoder<'_> {
             let word_out: &mut [u8; 2] = word_out.try_into().unwrap();
             *word_out = u16::from(yj).to_be_bytes();
         }
+    }
+
+    fn callsign(&self) -> &GenericArray<u8, S::CallsignLen> {
+        self.buffer[0].callsign()
     }
 
     fn num_systematic(&self) -> u16 {
@@ -213,9 +220,10 @@ impl Encoder<'_> {
 pub struct Decoder {}
 
 #[derive(Debug)]
-struct DecoderHelper<'a, 'b> {
-    input: &'a mut [SSDVPacket],
-    output: &'b mut [SSDVPacket],
+struct DecoderHelper<'a, 'b, S: SSDVPacket> {
+    input: &'a mut [S],
+    output: &'b mut [S],
+    callsign: GenericArray<u8, S::CallsignLen>,
     num_systematic: u16,
     image_id: u8,
     image_width: u8,
@@ -305,10 +313,10 @@ impl Decoder {
     ///
     /// The packets in `input` can be in any order and can have duplicates. The
     /// function works in-place in the `input` slice, modifying its contents.
-    pub fn decode<'a>(
-        input: &mut [SSDVPacket],
-        output: &'a mut [SSDVPacket],
-    ) -> Result<&'a mut [SSDVPacket], DecoderError> {
+    pub fn decode<'a, S: SSDVPacket>(
+        input: &mut [S],
+        output: &'a mut [S],
+    ) -> Result<&'a mut [S], DecoderError> {
         let mut decoder = DecoderHelper::new(input, output)?;
         decoder.init_output();
         decoder.copy_systematic();
@@ -320,25 +328,28 @@ impl Decoder {
     }
 }
 
-impl<'a, 'b> DecoderHelper<'a, 'b> {
-    fn new(
-        input: &'a mut [SSDVPacket],
-        output: &'b mut [SSDVPacket],
-    ) -> Result<Self, DecoderError> {
+impl<'a, 'b, S: SSDVPacket> DecoderHelper<'a, 'b, S> {
+    fn new(input: &'a mut [S], output: &'b mut [S]) -> Result<Self, DecoderError> {
         let input = Self::remove_duplicates_and_wrong_crcs(input);
         let num_systematic = Self::find_num_systematic(input)?;
-        if input.len() < usize::from(num_systematic) {
+        // Check here that !input.is_empty(), since we will access to input[0]
+        // below. In principle, num_systematic should be > 0, but if the packets
+        // are maliciously formed, perhaps it might be computed as 0 by the
+        // decoder.
+        if input.is_empty() || input.len() < usize::from(num_systematic) {
             return Err(DecoderError::NotEnoughInput);
         }
         if output.len() < usize::from(num_systematic) {
             return Err(DecoderError::OutputTooShort);
         }
+        let callsign = input[0].callsign().clone();
         Self::check_systematic_ids(input, num_systematic)?;
         let (image_id, flags) = Self::find_image_id_flags(input)?;
         let (image_width, image_height) = Self::find_image_dimensions(input)?;
         Ok(DecoderHelper {
             input,
             output,
+            callsign,
             num_systematic,
             image_id,
             image_width,
@@ -347,7 +358,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
         })
     }
 
-    fn remove_duplicates_and_wrong_crcs(input: &mut [SSDVPacket]) -> &mut [SSDVPacket] {
+    fn remove_duplicates_and_wrong_crcs(input: &mut [S]) -> &mut [S] {
         let mut len = input.len();
         let mut j = 0;
         while j < len {
@@ -373,7 +384,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
         &mut input[..len]
     }
 
-    fn find_num_systematic(input: &[SSDVPacket]) -> Result<u16, DecoderError> {
+    fn find_num_systematic(input: &[S]) -> Result<u16, DecoderError> {
         let mut id_eoi = None;
         let mut from_fec_packets = None;
         for packet in input {
@@ -410,7 +421,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
         }
     }
 
-    fn check_systematic_ids(input: &[SSDVPacket], num_systematic: u16) -> Result<(), DecoderError> {
+    fn check_systematic_ids(input: &[S], num_systematic: u16) -> Result<(), DecoderError> {
         for packet in input {
             if !packet.is_fec_packet() && packet.packet_id() >= num_systematic {
                 return Err(DecoderError::WrongSystematicId);
@@ -419,7 +430,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
         Ok(())
     }
 
-    fn find_image_id_flags(input: &[SSDVPacket]) -> Result<(u8, u8), DecoderError> {
+    fn find_image_id_flags(input: &[S]) -> Result<(u8, u8), DecoderError> {
         let image_id = input[0].image_id();
 
         fn clean_flags(flags: u8) -> u8 {
@@ -440,7 +451,7 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
         Ok((image_id, flags))
     }
 
-    fn find_image_dimensions(input: &[SSDVPacket]) -> Result<(u8, u8), DecoderError> {
+    fn find_image_dimensions(input: &[S]) -> Result<(u8, u8), DecoderError> {
         let mut dimensions = None;
         for packet in input {
             if let Some(width) = packet.width() {
@@ -485,8 +496,9 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
     // Computes
     // w_j^{-1} = \prod_{m \neq j} (x_j - x_m).
     //
-    // This is different from Encoder::wj_inv because the packet_id's of the
-    // first k packets in the input buffer are not sequential.
+    // This is different from the wj_inv function used in Encoder because the
+    // packet_id's of the first k packets in the input buffer are not
+    // sequential.
     fn wj_inv(&self, j: usize) -> GF64K {
         let xj = GF64K::from(self.input[j].packet_id());
         let mut ret = GF64K::from(1);
@@ -551,6 +563,8 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
             }
 
             // Fill header
+            packet.set_fixed_fields();
+            packet.callsign_as_mut().copy_from_slice(&self.callsign);
             packet.set_image_id(self.image_id);
             packet.set_packet_id(j as u16);
             packet.set_width(self.image_width);
@@ -568,19 +582,26 @@ impl<'a, 'b> DecoderHelper<'a, 'b> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{ssdv::SSDV_PACKET_LEN, test_data::IMG_230_SSDV};
+    use crate::{
+        packet_formats::longjiang2::{Parameters, SSDVPacket},
+        test_data::IMG_230_SSDV,
+        SSDVParameters,
+    };
+    use generic_array::typenum::Unsigned;
+
+    const PACKET_LEN: usize = <Parameters as SSDVParameters>::PacketLen::USIZE;
 
     #[test]
     fn encode_img_230_systematic() {
         let mut ssdv = IMG_230_SSDV
-            .chunks_exact(SSDV_PACKET_LEN)
-            .map(|chunk| SSDVPacket(chunk.try_into().unwrap()))
+            .chunks_exact(PACKET_LEN)
+            .map(|chunk| SSDVPacket::new_from_slice(chunk).unwrap())
             .collect::<Vec<SSDVPacket>>();
         let encoder = Encoder::new(&mut ssdv).unwrap();
 
-        let mut encoded_packet = SSDVPacket::zeroed();
-        for (j, packet) in IMG_230_SSDV.chunks_exact(SSDV_PACKET_LEN).enumerate() {
-            let original_packet = SSDVPacket(packet.try_into().unwrap());
+        let mut encoded_packet = SSDVPacket::default();
+        for (j, packet) in IMG_230_SSDV.chunks_exact(PACKET_LEN).enumerate() {
+            let original_packet = SSDVPacket::new_from_slice(packet).unwrap();
             encoder.encode(u16::try_from(j).unwrap(), &mut encoded_packet);
             assert_eq!(&encoded_packet, &original_packet);
         }
@@ -589,8 +610,8 @@ mod test {
     #[test]
     fn encode_decode_img_230_one_every_n() {
         let ssdv = IMG_230_SSDV
-            .chunks_exact(SSDV_PACKET_LEN)
-            .map(|chunk| SSDVPacket(chunk.try_into().unwrap()))
+            .chunks_exact(PACKET_LEN)
+            .map(|chunk| SSDVPacket::new_from_slice(chunk).unwrap())
             .collect::<Vec<SSDVPacket>>();
         let k = ssdv.len();
         // Do a copy to keep ssdv as a reference (since the encoder destroys the input)
@@ -601,19 +622,19 @@ mod test {
             let mut encoded_packets = (0..one_in_every * k)
                 .step_by(one_in_every)
                 .map(|j| {
-                    let mut encoded_packet = SSDVPacket::zeroed();
+                    let mut encoded_packet = SSDVPacket::default();
                     encoder.encode(u16::try_from(j).unwrap(), &mut encoded_packet);
                     encoded_packet
                 })
                 .collect::<Vec<SSDVPacket>>();
 
-            let mut output = vec![SSDVPacket::zeroed(); k];
+            let mut output = vec![SSDVPacket::default(); k];
             Decoder::decode(&mut encoded_packets[..], &mut output[..]).unwrap();
             for (j, (s, o)) in ssdv.iter().zip(output.iter()).enumerate() {
                 assert_eq!(
                     &s, &o,
                     "SSDV packet {j} is different \
-                                    (decoding with one in every {one_in_every} packet received)"
+                     (decoding with one in every {one_in_every} packet received)"
                 );
             }
         }
