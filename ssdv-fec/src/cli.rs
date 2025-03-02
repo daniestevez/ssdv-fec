@@ -3,9 +3,9 @@
 //! This module implements the CLI application for encoding and decoding with
 //! SSDV FEC.
 
-use crate::{Decoder, Encoder, SSDVPacket};
+use crate::{packet_formats, Decoder, Encoder, SSDVPacket, SSDVPacketArray, SSDVParameters};
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::{
     convert::AsRef,
     fs::File,
@@ -17,8 +17,19 @@ use std::{
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    /// SSDV packet format.
+    #[arg(long, default_value = "no-fec")]
+    format: SSDVFormat,
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, ValueEnum)]
+enum SSDVFormat {
+    /// No-FEC mode (256 byte packet) defined in standard SSDV.
+    NoFec,
+    /// Custom 218 byte packet format used by Longjiang-2
+    Longjiang2,
 }
 
 #[derive(Subcommand, Debug)]
@@ -56,13 +67,24 @@ enum Command {
 /// Runs the CLI application.
 pub fn run() -> Result<()> {
     let args = Args::parse();
-    match args.command {
-        Command::Encode {
+    match args.format {
+        SSDVFormat::NoFec => {
+            run_with_packet_parameters::<packet_formats::no_fec::Parameters>(&args)
+        }
+        SSDVFormat::Longjiang2 => {
+            run_with_packet_parameters::<packet_formats::longjiang2::Parameters>(&args)
+        }
+    }
+}
+
+fn run_with_packet_parameters<P: SSDVParameters>(args: &Args) -> Result<()> {
+    match &args.command {
+        &Command::Encode {
             first,
             npackets,
             rate,
-            input,
-            output,
+            ref input,
+            ref output,
         } => {
             match (npackets, rate) {
                 (Some(_), Some(_)) => {
@@ -85,7 +107,7 @@ pub fn run() -> Result<()> {
                 .unwrap(),
                 _ => unreachable!(),
             };
-            let mut encoded = vec![SSDVPacket::zeroed(); usize::from(npackets)];
+            let mut encoded = vec![SSDVPacketArray::<P>::default(); usize::from(npackets)];
             for (j, packet) in encoded.iter_mut().enumerate() {
                 let packet_id = first + j as u16;
                 encoder.encode(packet_id, packet);
@@ -94,7 +116,7 @@ pub fn run() -> Result<()> {
         }
         Command::Decode { input, output } => {
             let mut input = read_ssdv_to_vec(input)?;
-            let mut output_vec = vec![SSDVPacket::zeroed(); input.len()];
+            let mut output_vec = vec![SSDVPacketArray::<P>::default(); input.len()];
             let decoded = Decoder::decode(&mut input, &mut output_vec)?;
             write_ssdv_slice(output, decoded)?;
         }
@@ -102,11 +124,11 @@ pub fn run() -> Result<()> {
     Ok(())
 }
 
-fn read_ssdv_to_vec<P: AsRef<Path>>(path: P) -> Result<Vec<SSDVPacket>> {
+fn read_ssdv_to_vec<P: SSDVParameters>(path: impl AsRef<Path>) -> Result<Vec<SSDVPacketArray<P>>> {
     let mut file = File::open(path)?;
     let mut packets = Vec::new();
     for n in 0.. {
-        let mut packet = SSDVPacket::zeroed();
+        let mut packet = SSDVPacketArray::default();
         match file.read_exact(&mut packet.0) {
             Err(err) if matches!(err.kind(), ErrorKind::UnexpectedEof) => return Ok(packets),
             Err(err) => Err(err)?,
@@ -123,7 +145,10 @@ fn read_ssdv_to_vec<P: AsRef<Path>>(path: P) -> Result<Vec<SSDVPacket>> {
     unreachable!();
 }
 
-fn write_ssdv_slice<P: AsRef<Path>>(path: P, ssdv_packets: &[SSDVPacket]) -> Result<()> {
+fn write_ssdv_slice<P: SSDVParameters>(
+    path: impl AsRef<Path>,
+    ssdv_packets: &[SSDVPacketArray<P>],
+) -> Result<()> {
     let mut file = File::create(path)?;
     for packet in ssdv_packets {
         file.write_all(&packet.0)?;

@@ -17,6 +17,22 @@
 //! of packets. The receiver can recover the original SSDV image from any set of
 //! k distinct packets.
 //!
+//! Several SSDV packet formats are supported:
+//!
+//! - The no-FEC
+//!   [standard packet format](https://ukhas.org.uk/doku.php?id=guides:ssdv#packet_format)
+//!   implemented by the
+//!   [upstream SSDV](https://github.com/fsphil/ssdv). This is a 256-byte packet
+//!   format that includes a callsign.
+//!
+//! - The custom packet format used by Longjiang-2, which is implemented in a
+//!   [fork of SSVD](https://github.com/daniestevez/ssdv). This is a 218-byte
+//!   packet format that omits the sync byte, packet type and callsign fields (but
+//!   includes them implicitly in the generation of the CRC-32).
+//!
+//! Other packet formats can be supported by implementing the [`SSDVParameters`]
+//! or the [`SSDVPacket`] trait.
+//!
 //! This implementation of the FEC scheme uses 218-byte SSDV packets following
 //! the format used by Longjiang-2, which omits the sync byte, packet type and
 //! callsign fields (but includes them implicitly in the generation of the
@@ -50,7 +66,9 @@ pub use fec::{Decoder, DecoderError, Encoder, EncoderError};
 mod gf64k;
 pub use gf64k::{GF256, GF64K};
 mod ssdv;
-pub use ssdv::{SSDVPacket, SSDV_DATA_LEN, SSDV_PACKET_LEN};
+pub use ssdv::{SSDVPacket, SSDVPacketArray, SSDVParameters};
+
+pub mod packet_formats;
 
 #[cfg(test)]
 mod test_data;

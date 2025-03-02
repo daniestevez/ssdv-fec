@@ -16,9 +16,21 @@ the transmitter. The large amount of 2¹⁶ distinct packets than can be generat
 provides a virtually limitless source of packets. The receiver can recover the
 original SSDV image from any set of k distinct packets.
 
-This implementation of the FEC scheme uses 218-byte SSDV packets following the
-format used by Longjiang-2, which omits the sync byte, packet type and callsign
-fields (but includes them implicitly in the generation of the CRC-32).
+Several SSDV packet formats are supported:
+
+- The no-FEC
+  [standard packet format](https://ukhas.org.uk/doku.php?id=guides:ssdv#packet_format)
+  implemented by the
+  [upstream SSDV](https://github.com/fsphil/ssdv). This is a 256-byte packet format
+  that includes a callsign.
+
+- The custom packet format used by Longjiang-2, which is implemented in a
+  [fork of SSVD](https://github.com/daniestevez/ssdv). This is a 218-byte packet
+  format that omits the sync byte, packet type and callsign fields (but includes
+  them implicitly in the generation of the CRC-32).
+
+Other packet formats can be supported by implementing the `SSDVParameters` or
+the `SSDVPacket` trait.
 
 The crate supports `no_std` and the implementation is designed with small
 microcontrollers in mind. The GF(2¹⁶) arithmetic only uses two tables of 256
@@ -43,19 +55,23 @@ The CLI application can be installed using
 cargo install ssdv-fec
 ```
 
-The `ssdv-fec` application supports the commands `encode` and `decode`. To
-perform encoding, it is necessary to specify the number of packets to generate
-in the output. This can be done with the `--npackets` argument to specify a
-fixed number of packets, or with the `--rate` argument to specify the coding
-rate. If `--rate` is used, the number of encoded packets is equal to the number
-of packets in the original image divided by the coding rate (which must be
-between 0 and 1). An example SSDV image can be found in the
-[`src/test_data`](src/test_data) directory. These are examples of encoding.
+The `ssdv-fec` application supports the commands `encode` and `decode`.  The
+SSDV packet format can be specified for both commands using the `--format`
+argument. The default format is the standard no-FEC SSDV packet format.
+
+To perform encoding, it is necessary to specify the number of packets to
+generate in the output. This can be done with the `--npackets` argument to
+specify a fixed number of packets, or with the `--rate` argument to specify the
+coding rate. If `--rate` is used, the number of encoded packets is equal to the
+number of packets in the original image divided by the coding rate (which must
+be between 0 and 1). An example SSDV image that uses the Longjiang-2 packet
+format can be found in the [`src/test_data`](src/test_data) directory. These are
+examples of encoding.
 
 ```
-ssdv-fec encode --rate 0.8 src/test_data/img_230.ssdv encoded.ssdv
-ssdv-fec encode --npackets 256 src/test_data/img_230.ssdv encoded.ssdv
-ssdv-fec encode --first 57 --npackets 15 src/test_data/img_230.ssdv encoded.ssdv
+ssdv-fec --format longjiang2 encode --rate 0.8 src/test_data/img_230.ssdv encoded.ssdv
+ssdv-fec --format longjiang2 encode --npackets 256 src/test_data/img_230.ssdv encoded.ssdv
+ssdv-fec --format longjiang2 encode --first 57 --npackets 15 src/test_data/img_230.ssdv encoded.ssdv
 ```
 
 By default the packet ID of the first encoded packet is zero, but another first
@@ -67,7 +83,7 @@ Decoding only requires the input file and output file as arguments. Here is an
 example of decoding.
 
 ```
-ssdv-fec decode encoded.ssdv decoded.ssdv
+ssdv-fec --format longjiang2 decode encoded.ssdv decoded.ssdv
 ```
 
 The input file for decoding should only contain packets of a single image. The

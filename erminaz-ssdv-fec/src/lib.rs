@@ -14,9 +14,11 @@ use core::{
     mem::MaybeUninit,
     slice,
 };
-use ssdv_fec::{Decoder, DecoderError, Encoder, EncoderError, SSDVPacket};
+use ssdv_fec::{
+    packet_formats::longjiang2::SSDVPacket, Decoder, DecoderError, Encoder, EncoderError,
+};
 
-static mut SSDV_FEC_ENCODER: MaybeUninit<Encoder> = MaybeUninit::uninit();
+static mut SSDV_FEC_ENCODER: MaybeUninit<Encoder<SSDVPacket>> = MaybeUninit::uninit();
 
 /// Prepares the SSDV FEC encoder.
 ///
