@@ -1,5 +1,5 @@
 use core::borrow::Borrow;
-use generic_array::{typenum::Unsigned, ArrayLength, GenericArray};
+use generic_array::{ArrayLength, GenericArray, typenum::Unsigned};
 
 /// SSDV packet.
 ///

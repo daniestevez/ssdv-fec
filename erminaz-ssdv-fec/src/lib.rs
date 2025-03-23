@@ -15,7 +15,7 @@ use core::{
     slice,
 };
 use ssdv_fec::{
-    packet_formats::longjiang2::SSDVPacket, Decoder, DecoderError, Encoder, EncoderError,
+    Decoder, DecoderError, Encoder, EncoderError, packet_formats::longjiang2::SSDVPacket,
 };
 
 static mut SSDV_FEC_ENCODER: MaybeUninit<Encoder<SSDVPacket>> = MaybeUninit::uninit();
@@ -40,13 +40,14 @@ static mut SSDV_FEC_ENCODER: MaybeUninit<Encoder<SSDVPacket>> = MaybeUninit::uni
 /// SSDV packets, must outlive all the usage of the FEC encoder until this
 /// function is called again with a new buffer, and its contents must not be
 /// accessed by other code while the buffer is owned by the FEC encoder.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ssdv_fec_encoder_setup(
     ssdv_packets: *mut c_char,
     num_ssdv_packets: c_int,
 ) -> c_int {
-    let ssdv_packets =
-        slice::from_raw_parts_mut(ssdv_packets.cast::<SSDVPacket>(), num_ssdv_packets as usize);
+    let ssdv_packets = unsafe {
+        slice::from_raw_parts_mut(ssdv_packets.cast::<SSDVPacket>(), num_ssdv_packets as usize)
+    };
     let encoder = match Encoder::new(ssdv_packets) {
         Ok(encoder) => encoder,
         Err(err) => {
@@ -54,7 +55,7 @@ pub unsafe extern "C" fn ssdv_fec_encoder_setup(
                 EncoderError::EmptyInput => SSDV_FEC_ENCODER_ERR_EMPTY_INPUT,
                 EncoderError::TooLongInput => SSDV_FEC_ENCODER_ERR_TOO_LONG_INPUT,
                 EncoderError::NonSystematicInput => SSDV_FEC_ENCODER_ERR_NON_SYSTEMATIC_INPUT,
-            }
+            };
         }
     };
     // SAFETY:
@@ -66,7 +67,7 @@ pub unsafe extern "C" fn ssdv_fec_encoder_setup(
     //
     // https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html#safe-references
     let ssdv_fec_encoder_ptr = &raw mut SSDV_FEC_ENCODER;
-    (*ssdv_fec_encoder_ptr).write(encoder);
+    unsafe { (*ssdv_fec_encoder_ptr).write(encoder) };
     0
 }
 
@@ -85,10 +86,10 @@ pub unsafe extern "C" fn ssdv_fec_encoder_setup(
 /// non-negative and smaller than `2**16 - 1`. The `output` buffer must have
 /// allocated storage for at least one SSDV packet. All the safety
 /// considerations of [`ssdv_fec_encoder_setup`] also apply.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ssdv_fec_encoder_encode(packet_id: c_int, output: *mut c_char) {
     let output = output.cast::<SSDVPacket>();
-    let output = &mut *output;
+    let output = unsafe { &mut *output };
     // SAFETY:
     //
     // According to the precodintions of this function, it is not to be called
@@ -98,9 +99,11 @@ pub unsafe extern "C" fn ssdv_fec_encoder_encode(packet_id: c_int, output: *mut 
     //
     // https://doc.rust-lang.org/nightly/edition-guide/rust-2024/static-mut-references.html#safe-references
     let ssdv_fec_encoder_ptr = &raw mut SSDV_FEC_ENCODER;
-    (*ssdv_fec_encoder_ptr)
-        .assume_init_mut()
-        .encode(packet_id as u16, output);
+    unsafe {
+        (*ssdv_fec_encoder_ptr)
+            .assume_init_mut()
+            .encode(packet_id as u16, output)
+    };
 }
 
 /// Decodes a FEC encoded SSDV image.
@@ -126,16 +129,19 @@ pub unsafe extern "C" fn ssdv_fec_encoder_encode(packet_id: c_int, output: *mut 
 ///
 /// The `input` and `output` buffers should be valid allocated storage of size
 /// at least as indicated by their corresponding `num_*_packets` parameters.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn ssdv_fec_decoder_decode(
     input: *mut c_char,
     num_input_packets: c_int,
     output: *mut c_char,
     num_output_packets: c_int,
 ) -> c_int {
-    let input = slice::from_raw_parts_mut(input.cast::<SSDVPacket>(), num_input_packets as usize);
-    let output =
-        slice::from_raw_parts_mut(output.cast::<SSDVPacket>(), num_output_packets as usize);
+    let input = unsafe {
+        slice::from_raw_parts_mut(input.cast::<SSDVPacket>(), num_input_packets as usize)
+    };
+    let output = unsafe {
+        slice::from_raw_parts_mut(output.cast::<SSDVPacket>(), num_output_packets as usize)
+    };
     match Decoder::decode(input, output) {
         Ok(packets) => packets.len() as c_int,
         Err(err) => match err {

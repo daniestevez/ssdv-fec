@@ -43,9 +43,9 @@ where
 mod test {
     use super::*;
     use crate::{
+        SSDVPacket as _, SSDVParameters,
         packet_formats::longjiang2::{Parameters, SSDVPacket},
         test_data::IMG_230_SSDV,
-        SSDVPacket as _, SSDVParameters,
     };
     use generic_array::typenum::Unsigned;
 

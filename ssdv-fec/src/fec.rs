@@ -1,4 +1,4 @@
-use crate::{SSDVPacket, GF64K};
+use crate::{GF64K, SSDVPacket};
 use generic_array::GenericArray;
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -583,9 +583,9 @@ impl<'a, 'b, S: SSDVPacket> DecoderHelper<'a, 'b, S> {
 mod test {
     use super::*;
     use crate::{
+        SSDVParameters,
         packet_formats::longjiang2::{Parameters, SSDVPacket},
         test_data::IMG_230_SSDV,
-        SSDVParameters,
     };
     use generic_array::typenum::Unsigned;
 

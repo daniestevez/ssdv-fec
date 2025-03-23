@@ -64,7 +64,7 @@ mod crc;
 mod fec;
 pub use fec::{Decoder, DecoderError, Encoder, EncoderError};
 mod gf64k;
-pub use gf64k::{GF256, GF64K};
+pub use gf64k::{GF64K, GF256};
 mod ssdv;
 pub use ssdv::{SSDVPacket, SSDVPacketArray, SSDVParameters};
 
