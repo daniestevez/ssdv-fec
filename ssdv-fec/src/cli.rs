@@ -3,7 +3,7 @@
 //! This module implements the CLI application for encoding and decoding with
 //! SSDV FEC.
 
-use crate::{packet_formats, Decoder, Encoder, SSDVPacket, SSDVPacketArray, SSDVParameters};
+use crate::{Decoder, Encoder, SSDVPacket, SSDVPacketArray, SSDVParameters, packet_formats};
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::{

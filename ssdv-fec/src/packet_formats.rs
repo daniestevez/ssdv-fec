@@ -5,7 +5,7 @@
 
 use crate::{SSDVPacketArray, SSDVParameters};
 use core::borrow::Borrow;
-use generic_array::{typenum, ArrayLength, GenericArray};
+use generic_array::{ArrayLength, GenericArray, typenum};
 
 /// No-FEC standard SSDV packet format.
 ///
